@@ -1,0 +1,63 @@
+---
+- name: Prepare
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Download Elastic APT package metadata
+      ansible.builtin.get_url:
+        url: https://artifacts.elastic.co/packages/9.x/apt/dists/stable/main/binary-amd64/Packages.gz
+        dest: /tmp/elastic-packages.gz
+        mode: "0644"
+
+    - name: Determine latest Elasticsearch 9.x version from APT repository
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          gunzip -c /tmp/elastic-packages.gz |
+          awk '/^Package: elasticsearch$/{found=1} found && /^Version:/{print $2; found=0}' |
+          sort -V |
+          tail -1
+        executable: /bin/bash
+      register: elastalert2_es_version
+      changed_when: false
+      failed_when: elastalert2_es_version.stdout == ''
+
+    - name: Remove temporary package metadata
+      ansible.builtin.file:
+        path: /tmp/elastic-packages.gz
+        state: absent
+
+    - name: Display Elasticsearch version to use
+      ansible.builtin.debug:
+        msg: "Using Elasticsearch version: {{ elastalert2_es_version.stdout }}"
+
+    - name: Create Docker network for test
+      community.docker.docker_network:
+        name: elastalert2-test-network
+        state: present
+
+    - name: Create Elasticsearch container
+      community.docker.docker_container:
+        name: elasticsearch-test
+        image: "docker.elastic.co/elasticsearch/elasticsearch:{{ elastalert2_es_version.stdout }}"
+        state: started
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          xpack.security.http.ssl.enabled: "false"
+          xpack.security.transport.ssl.enabled: "false"
+          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+        networks:
+          - name: elastalert2-test-network
+        ports:
+          - "9200:9200"
+        detach: true
+
+    - name: Wait for Elasticsearch to be ready on host
+      ansible.builtin.uri:
+        url: http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=30s
+        status_code: 200
+      register: elastalert2_es_health
+      until: elastalert2_es_health.status == 200
+      retries: 30
+      delay: 5

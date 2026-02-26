@@ -1,0 +1,37 @@
+---
+- name: Find ElastAlert2 install path
+  ansible.builtin.command:
+    cmd: python3 -c "import elastalert; import os; print(os.path.dirname(elastalert.__file__))"
+  register: _elastalert2_install_path
+  changed_when: false
+
+- name: Find files using datetime.UTC
+  ansible.builtin.command:
+    cmd: grep -rl 'datetime\.UTC' {{ _elastalert2_install_path.stdout }}/
+  register: _elastalert2_datetime_utc_files
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['python']['version']['minor'] | int < 11
+
+- name: Patch datetime.UTC for Python < 3.11
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: 'datetime\.UTC'
+    replace: 'datetime.timezone.utc'
+  loop: "{{ _elastalert2_datetime_utc_files.stdout_lines | default([]) }}"
+  when: ansible_facts['python']['version']['minor'] | int < 11
+  notify: Restart elastalert2
+
+- name: Patch deprecated range query syntax (from/to -> gte/lte)
+  ansible.builtin.replace:
+    path: "{{ _elastalert2_install_path.stdout }}/elastalert.py"
+    regexp: "'range': \\{'alert_time': \\{'from':"
+    replace: "'range': {'alert_time': {'gte':"
+  notify: Restart elastalert2
+
+- name: Patch deprecated range query syntax (to -> lte)
+  ansible.builtin.replace:
+    path: "{{ _elastalert2_install_path.stdout }}/elastalert.py"
+    regexp: "'to': dt_to_ts\\(ts_now\\(\\)\\)\\}\\}"
+    replace: "'lte': dt_to_ts(ts_now())}}"
+  notify: Restart elastalert2

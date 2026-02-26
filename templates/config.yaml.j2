@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+
+rules_folder: {{ elastalert2_rules_dir }}
+
+es_host: {{ elastalert2_elasticsearch_host }}
+es_port: {{ elastalert2_elasticsearch_port }}
+{% if elastalert2_elasticsearch_username %}
+es_username: {{ elastalert2_elasticsearch_username }}
+es_password: {{ elastalert2_elasticsearch_password }}
+{% endif %}
+
+{{ elastalert2_config | to_nice_yaml(indent=2) -}}

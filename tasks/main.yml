@@ -1,0 +1,100 @@
+---
+- name: Install dependencies
+  ansible.builtin.apt:
+    name: "{{ elastalert2_dependencies }}"
+    state: present
+    update_cache: true
+
+- name: Create elastalert group
+  ansible.builtin.group:
+    name: "{{ elastalert2_group }}"
+    system: true
+    state: present
+
+- name: Create elastalert user
+  ansible.builtin.user:
+    name: "{{ elastalert2_user }}"
+    group: "{{ elastalert2_group }}"
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+    state: present
+
+- name: Install ElastAlert2
+  ansible.builtin.pip:
+    break_system_packages: true
+    name: "elastalert2{{ '==' + elastalert2_version if elastalert2_version else '' }}"
+    state: present
+
+- name: Apply compatibility patches for older Python
+  ansible.builtin.import_tasks: patches.yml
+
+- name: Create configuration directory
+  ansible.builtin.file:
+    path: "{{ elastalert2_config_dir }}"
+    state: directory
+    owner: "{{ elastalert2_user }}"
+    group: "{{ elastalert2_group }}"
+    mode: "0750"
+
+- name: Create rules directory
+  ansible.builtin.file:
+    path: "{{ elastalert2_rules_dir }}"
+    state: directory
+    owner: "{{ elastalert2_user }}"
+    group: "{{ elastalert2_group }}"
+    mode: "0750"
+
+- name: Deploy configuration file
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ elastalert2_config_dir }}/config.yaml"
+    owner: "{{ elastalert2_user }}"
+    group: "{{ elastalert2_group }}"
+    mode: "0640"
+  notify: Restart elastalert2
+  no_log: true
+
+- name: Manage rules
+  ansible.builtin.import_tasks: rules.yml
+
+- name: Deploy systemd unit
+  ansible.builtin.template:
+    src: elastalert2.service.j2
+    dest: /etc/systemd/system/elastalert2.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd daemon
+    - Restart elastalert2
+  when: ansible_facts['service_mgr'] == 'systemd'
+
+- name: Check if writeback index exists
+  ansible.builtin.uri:
+    url: "{{ elastalert2_elasticsearch_scheme }}://{{ elastalert2_elasticsearch_host }}:{{ elastalert2_elasticsearch_port }}/{{ elastalert2_config.writeback_index | default('elastalert_status') }}"
+    method: GET
+    status_code:
+      - 200
+      - 404
+    url_username: "{{ elastalert2_elasticsearch_username | d(omit, true) }}"
+    url_password: "{{ elastalert2_elasticsearch_password | d(omit, true) }}"
+    force_basic_auth: "{{ (elastalert2_elasticsearch_username | d('', true) | length > 0) | bool }}"
+  register: _elastalert2_writeback_index
+  changed_when: false
+
+- name: Create writeback index
+  ansible.builtin.command:
+    cmd: elastalert-create-index --config {{ elastalert2_config_dir }}/config.yaml --old-index ""
+  become: true
+  become_user: "{{ elastalert2_user }}"
+  when: _elastalert2_writeback_index.status == 404
+  changed_when: true
+
+- name: Enable and start elastalert2
+  ansible.builtin.service:
+    name: elastalert2
+    enabled: true
+    state: started
+  when: ansible_facts['service_mgr'] == 'systemd'

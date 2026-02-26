@@ -1,0 +1,23 @@
+---
+galaxy_info:
+  role_name: elastalert2
+  namespace: boutetnico
+  author: Nicolas Boutet
+  description: Installs and configures ElastAlert2.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+  galaxy_tags:
+    - alerting
+    - elastic
+    - elasticsearch
+    - elk
+    - monitoring
+dependencies: []

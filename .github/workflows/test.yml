@@ -1,0 +1,41 @@
+---
+name: Test ansible role
+
+"on":
+  pull_request:
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: "22 2 * * 2"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: pip install ansible docker molecule molecule-plugins[docker] pytest-testinfra
+
+      - name: Run Molecule
+        run: molecule test
+        env:
+          ANSIBLE_FORCE_COLOR: "1"
+          PY_COLORS: "1"

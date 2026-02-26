@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=ElastAlert2
+After=network.target
+
+[Service]
+Type=simple
+User={{ elastalert2_user }}
+Group={{ elastalert2_group }}
+ExecStart=/usr/local/bin/elastalert{% if elastalert2_log_level == 'debug' %} --debug{% elif elastalert2_log_level == 'info' %} --verbose{% endif %} --config {{ elastalert2_config_dir }}/config.yaml
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

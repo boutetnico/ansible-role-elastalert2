@@ -1,0 +1,60 @@
+---
+elastalert2_version: ""
+
+elastalert2_dependencies:
+  - build-essential
+  - libffi-dev
+  - libssl-dev
+  - python3
+  - python3-dev
+  - python3-pip
+
+elastalert2_log_level: warning  # warning, info, or debug
+elastalert2_config_dir: /etc/elastalert2
+elastalert2_rules_dir: /etc/elastalert2/rules
+
+elastalert2_user: elastalert
+elastalert2_group: elastalert
+
+# Elasticsearch connection
+elastalert2_elasticsearch_scheme: http
+elastalert2_elasticsearch_host: localhost
+elastalert2_elasticsearch_port: 9200
+elastalert2_elasticsearch_username: ""
+elastalert2_elasticsearch_password: ""
+
+# Extra config merged into config.yaml
+elastalert2_config:
+  run_every:
+    minutes: 1
+  buffer_time:
+    minutes: 15
+  writeback_index: elastalert_status
+  writeback_index_settings:
+    settings:
+      number_of_replicas: 0
+  alert_time_limit:
+    days: 2
+  logging:
+    version: 1
+    loggers:
+      elasticsearch:
+        level: ERROR
+
+# Rules — each item becomes a rule YAML file
+elastalert2_rules: []
+# - name: "Syslog errors"
+#   type: frequency
+#   index: "syslog-*"
+#   num_events: 1
+#   timeframe:
+#     minutes: 1
+#   filter:
+#     - query:
+#         query_string:
+#           query: "message:(error OR fail)"
+#   realert:
+#     minutes: 15
+#   alert:
+#     - slack
+#   slack_webhook_url: "https://hooks.slack.com/services/T.../B.../xxx"

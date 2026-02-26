@@ -1,0 +1,39 @@
+---
+- name: Find existing rule files
+  ansible.builtin.find:
+    paths: "{{ elastalert2_rules_dir }}"
+    patterns: "*.yaml"
+  register: _elastalert2_existing_rules
+
+- name: Build list of managed rule filenames
+  ansible.builtin.set_fact:
+    _elastalert2_managed_files: >-
+      {{ elastalert2_rules
+         | map(attribute='name')
+         | map('regex_replace', '[^a-zA-Z0-9]', '_')
+         | map('lower')
+         | map('regex_replace', '$', '.yaml')
+         | list }}
+
+- name: Deploy rule files
+  ansible.builtin.template:
+    src: rule.yaml.j2
+    dest: "{{ elastalert2_rules_dir }}/{{ item.name | regex_replace('[^a-zA-Z0-9]', '_') | lower }}.yaml"
+    owner: "{{ elastalert2_user }}"
+    group: "{{ elastalert2_group }}"
+    mode: "0640"
+  loop: "{{ elastalert2_rules }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Restart elastalert2
+  no_log: true
+
+- name: Remove unmanaged rule files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ _elastalert2_existing_rules.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: item.path | basename not in _elastalert2_managed_files
+  notify: Restart elastalert2
