@@ -68,9 +68,9 @@ def test_service_enabled_and_running(host):
 
 def test_writeback_index_created(host):
     cmd = host.run(
-        "python3 -c \""
+        'python3 -c "'
         "import urllib.request; "
         "r = urllib.request.urlopen('http://elasticsearch-test:9200/elastalert_status'); "
-        "print(r.status)\""
+        'print(r.status)"'
     )
     assert cmd.stdout.strip() == "200"
